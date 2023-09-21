@@ -1,0 +1,181 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+
+// Definiciones de pines
+#define START_BUTTON_PIN GPIO_PIN_4    // Pin del botón de inicio
+#define RGB_LED_RED GPIO_PIN_1         // Pin para el LED rojo del RGB
+#define RGB_LED_GREEN GPIO_PIN_3       // Pin para el LED verde del RGB
+#define RGB_LED_BLUE GPIO_PIN_2        // Pin para el LED azul del RGB
+#define RGB_LED_ALL (RGB_LED_RED | RGB_LED_GREEN | RGB_LED_BLUE)
+
+// Pines de los LEDs de los jugadores (ajusta estos pines según tu configuración)
+#define LED_PLAYER1 {GPIO_PIN_0, GPIO_PIN_1, GPIO_PIN_2, GPIO_PIN_3, GPIO_PIN_4}
+#define LED_PLAYER2 {GPIO_PIN_5, GPIO_PIN_6, GPIO_PIN_7, GPIO_PIN_8, GPIO_PIN_9}
+
+// Estados del semáforo
+enum SemaphorState {
+  INIT,
+  RED,
+  YELLOW,
+  GREEN,
+  RACE,
+  FINISH
+};
+
+enum SemaphorState currentState = INIT;
+
+// Contadores de jugadores
+int jugador1 = 0;
+int jugador2 = 0;
+
+void setup() {
+  // Inicializar el sistema
+  InitSysCtl();
+  InitGPIO();
+
+  // Inicializar el semáforo en el estado inicial (INIT)
+  currentState = INIT;
+  UpdateSemaphor();
+}
+
+void loop() {
+  // Manejar el semáforo según el estado actual
+  switch (currentState) {
+    case INIT:
+      // Esperar a que se presione el botón de inicio
+      if (digitalRead(START_BUTTON_PIN) == LOW) {
+        currentState = RED;
+        UpdateSemaphor();
+      }
+      break;
+
+    case RED:
+      delay(1000); // Esperar 1 segundo en rojo
+      currentState = YELLOW;
+      UpdateSemaphor();
+      break;
+
+    case YELLOW:
+      delay(1000); // Esperar 1 segundo en amarillo
+      currentState = GREEN;
+      UpdateSemaphor();
+      break;
+
+    case GREEN:
+      delay(1000); // Esperar 1 segundo en verde
+      currentState = RACE;
+      UpdateSemaphor();
+      break;
+
+    case RACE:
+      // Inicializa los contadores de los jugadores
+      jugador1 = 0;
+      jugador2 = 0;
+
+      // Simula la carrera hasta que uno de los jugadores llegue a 5
+      while (jugador1 < 5 && jugador2 < 5) {
+        // Simulación de avance de los jugadores
+        jugador1++; // Incremento para el jugador 1
+        jugador2++; // Incremento para el jugador 2
+
+        // Actualiza la visualización de los contadores con LEDs para el jugador 1
+        for (int i = 0; i < jugador1; i++) {
+          GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER1[i], LED_PLAYER1[i]);
+        }
+
+        // Actualiza la visualización de los contadores con LEDs para el jugador 2
+        for (int i = 0; i < jugador2; i++) {
+          GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER2[i], LED_PLAYER2[i]);
+        }
+
+        // Pequeña demora para simular el avance gradual
+        delay(100);
+      }
+
+      // Determina al ganador
+      if (jugador1 >= 5) {
+        // Jugador 1 gana, cambia el LED RGB a rojo
+        GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_RED, RGB_LED_RED);
+      } else {
+        // Jugador 2 gana, cambia el LED RGB a verde
+        GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_GREEN, RGB_LED_GREEN);
+      }
+
+      // Cambia al estado FINISH
+      currentState = FINISH;
+      UpdateSemaphor();
+      break;
+
+    case FINISH:
+      // La carrera ha terminado, no se hace nada en este estado
+      break;
+  }
+}
+
+void InitSysCtl() {
+  // Configurar el sistema
+  SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+}
+
+void InitGPIO() {
+  // Habilitar el reloj del puerto F
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+
+  // Configurar el pin del botón de inicio como entrada con resistencia pull-up
+  GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, START_BUTTON_PIN);
+  GPIOPadConfigSet(GPIO_PORTF_BASE, START_BUTTON_PIN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+  // Configurar los pines RGB del LED como salidas
+  GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, RGB_LED_RED | RGB_LED_GREEN | RGB_LED_BLUE);
+
+  // Configurar los pines de los LEDs de los jugadores como salidas
+  GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, LED_PLAYER1[0] | LED_PLAYER1[1] | LED_PLAYER1[2] | LED_PLAYER1[3] | LED_PLAYER1[4]);
+  GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, LED_PLAYER2[0] | LED_PLAYER2[1] | LED_PLAYER2[2] | LED_PLAYER2[3] | LED_PLAYER2[4]);
+
+  // Apagar todos los LEDs
+  GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_ALL, 0);
+  for (int i = 0; i < 5; i++) {
+    GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER1[i], 0);
+    GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER2[i], 0);
+  }
+}
+
+void UpdateSemaphor() {
+  // Apagar todos los LEDs
+  GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_ALL, 0);
+  for (int i = 0; i < 5; i++) {
+    GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER1[i], 0);
+    GPIOPinWrite(GPIO_PORTF_BASE, LED_PLAYER2[i], 0);
+  }
+
+  // Actualizar los LEDs del semáforo según el estado actual
+  switch (currentState) {
+    case RED:
+      GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_RED, RGB_LED_RED);
+      break;
+
+    case YELLOW:
+      GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_RED | RGB_LED_GREEN, RGB_LED_RED | RGB_LED_GREEN);
+      break;
+
+    case GREEN:
+      GPIOPinWrite(GPIO_PORTF_BASE, RGB_LED_GREEN, RGB_LED_GREEN);
+      break;
+
+    case RACE:
+      // En el estado de carrera, los LEDs de los jugadores ya se están actualizando
+      break;
+
+    case FINISH:
+      // La carrera ha terminado y los LEDs ya se han configurado según el ganador
+      break;
+
+    default:
+      break;
+  }
+}
