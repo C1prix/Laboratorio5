@@ -1,0 +1,68 @@
+#define PART_TM4C123GH6PM
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+
+#define BUTTON_PIN GPIO_PIN_4  // Pin del botón (Puede variar según la placa)
+#define COUNTER_PORT GPIO_PORTF_BASE  // Puerto del contador (Puede variar según la placa)
+#define COUNTER_PINS GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3  // Pines del contador (Puede variar según la placa)
+
+uint8_t contador = 0;
+
+void setup()
+{
+    // Inicializar el sistema
+    InitSysCtl();
+    InitGPIO();
+}
+
+void loop()
+{
+    // El contador se actualiza en la interrupción del botón
+}
+
+void InitSysCtl()
+{
+    // Configurar el sistema
+    SysCtlClockSet(SYSCTL_SYSDIV_1 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+}
+
+void InitGPIO()
+{
+    // Habilitar el reloj del puerto F
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+
+    // Configurar el pin del botón como entrada
+    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, BUTTON_PIN);
+
+    // Configurar la resistencia de pull-up para el botón
+    GPIOPadConfigSet(GPIO_PORTF_BASE, BUTTON_PIN, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    // Configurar la interrupción para el botón
+    GPIOIntTypeSet(GPIO_PORTF_BASE, BUTTON_PIN, GPIO_FALLING_EDGE);
+    GPIOIntEnable(GPIO_PORTF_BASE, BUTTON_PIN);
+
+    // Configurar los pines del contador como salidas
+    GPIOPinTypeGPIOOutput(COUNTER_PORT, COUNTER_PINS);
+    GPIOPinWrite(COUNTER_PORT, COUNTER_PINS, contador);
+}
+
+void PortFIntHandler()
+{
+    // Limpiar la bandera de interrupción del botón
+    GPIOIntClear(GPIO_PORTF_BASE, BUTTON_PIN);
+
+    // Incrementar el contador y asegurarse de que no exceda 9
+    contador++;
+    if (contador > 9)
+    {
+        contador = 0;
+    }
+
+    // Mostrar el valor del contador en los pines del contador
+    GPIOPinWrite(COUNTER_PORT, COUNTER_PINS, contador);
+}
